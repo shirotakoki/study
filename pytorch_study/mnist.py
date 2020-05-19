@@ -34,7 +34,7 @@ def main():
     '''
     main
     '''
-    args = parser()
+    args = parser
 
     transform = transforms.Compose(
         [transforms.ToTensor(),
