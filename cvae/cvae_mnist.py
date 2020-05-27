@@ -2,11 +2,12 @@ from __future__ import print_function
 import argparse
 import torch
 import torch.utils.data
+import random as rand
+import numpy as np
 from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
-from torchviz import make_dot
 
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
@@ -41,10 +42,10 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
-        self.fc1 = nn.Linear(784, 400)
+        self.fc1 = nn.Linear(784 + 10, 400)
         self.fc21 = nn.Linear(400, 20)
         self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(20, 400)
+        self.fc3 = nn.Linear(20 + 10, 400)
         self.fc4 = nn.Linear(400, 784)
 
     def encode(self, x):
@@ -56,14 +57,14 @@ class VAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps*std
 
-    def decode(self, z):
-        h3 = F.relu(self.fc3(z))
+    def decode(self, z, labels):
+        h3 = F.relu(self.fc3(torch.cat((z,labels.float().view(-1,10)),dim=-1)))
         return torch.sigmoid(self.fc4(h3))
 
-    def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, 784))
+    def forward(self, x, labels):
+        mu, logvar = self.encode(torch.cat((x.view(-1, 784),labels.float().view(-1,10)),dim=-1))
         z = self.reparameterize(mu, logvar)
-        return self.decode(z), mu, logvar
+        return self.decode(z, labels), mu, logvar
 
 
 model = VAE().to(device)
@@ -86,10 +87,14 @@ def loss_function(recon_x, x, mu, logvar):
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, _) in enumerate(train_loader):
+    for batch_idx, (data, labels) in enumerate(train_loader):
+        labels = torch.eye(10)[labels]
+        #print(data.size(), labels.size())
+        #print(labels)
         data = data.to(device)
+        labels = labels.to(device)
         optimizer.zero_grad()
-        recon_batch, mu, logvar = model(data)
+        recon_batch, mu, logvar = model(data, labels)
         loss = loss_function(recon_batch, data, mu, logvar)
         loss.backward()
         train_loss += loss.item()
@@ -108,32 +113,37 @@ def test(epoch):
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, _) in enumerate(test_loader):
+        for i, (data, labels) in enumerate(test_loader):
+            labels = torch.eye(10)[labels]
             data = data.to(device)
-            recon_batch, mu, logvar = model(data)
+            labels = labels.to(device)
+            recon_batch, mu, logvar = model(data,labels)
             test_loss += loss_function(recon_batch, data, mu, logvar).item()
             if i == 0:
                 n = min(data.size(0), 8)
                 comparison = torch.cat([data[:n],
                                       recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
                 save_image(comparison.cpu(),
-                         'vae/results/reconstruction_' + str(epoch) + '.png', nrow=n)
+                         'cvae/results/reconstruction_' + str(epoch) + '.png', nrow=n)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
 
 if __name__ == "__main__":
-    """
-    out = make_dot(model)
-    dot = make_dot(out)
-    dot.format = 'png'
-    dot.render('graph_image')
-    """
     for epoch in range(1, args.epochs + 1):
         train(epoch)
         test(epoch)
         with torch.no_grad():
             sample = torch.randn(64, 20).to(device)
-            sample = model.decode(sample).cpu()
+            #sample_label = torch.eye(10)[torch.tensor([rand.randint(0, 9)])]
+            sample_label = np.zeros((64, 10))
+            """
+            for i in range(64):
+                sample_label[i][rand.randint(0, 9)] = 1
+            """
+            sample_label = torch.from_numpy(sample_label).clone()
+                
+            #print(sample_label)
+            sample = model.decode(sample, sample_label).cpu()
             save_image(sample.view(64, 1, 28, 28),
-                       'vae/results/sample_' + str(epoch) + '.png')
+                       'cvae/results/sample_' + str(epoch) + '.png')
