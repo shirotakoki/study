@@ -2,12 +2,11 @@ from __future__ import print_function
 import argparse
 import torch
 import torch.utils.data
+import matplotlib.pyplot as plt
 from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
-from torchviz import make_dot
-
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
@@ -40,11 +39,11 @@ test_loader = torch.utils.data.DataLoader(
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
-
+        self.latent_dim = 2
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(20, 400)
+        self.fc21 = nn.Linear(400, self.latent_dim)
+        self.fc22 = nn.Linear(400, self.latent_dim)
+        self.fc3 = nn.Linear(self.latent_dim, 400)
         self.fc4 = nn.Linear(400, 784)
 
     def encode(self, x):
@@ -133,7 +132,21 @@ if __name__ == "__main__":
         train(epoch)
         test(epoch)
         with torch.no_grad():
-            sample = torch.randn(64, 20).to(device)
+            sample = torch.randn(64, model.latent_dim).to(device)
             sample = model.decode(sample).cpu()
             save_image(sample.view(64, 1, 28, 28),
                        'vae/results/sample_' + str(epoch) + '.png')
+    
+    sample_num = 2
+    cmap = plt.get_cmap("tab10")
+    for i, (data, labels) in enumerate(test_loader):
+        data = data.to(device)
+        recon_batch, mu, logvar = model(data)
+        z = model.reparameterize(mu, logvar)
+        z = z.to('cpu').detach().numpy().copy()
+        labels = labels.to('cpu').detach().numpy().copy()
+        for points,label in zip(z,labels):
+            #print(points, label)
+            plt.scatter(points[0],points[1],color=cmap(label))
+        if sample_num == i: break
+    plt.show()

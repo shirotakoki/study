@@ -4,10 +4,12 @@ import torch
 import torch.utils.data
 import random as rand
 import numpy as np
+import matplotlib.pyplot as plt
 from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
+
 
 
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
@@ -42,14 +44,15 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
+        self.latent_dim = 2
         self.fc1 = nn.Linear(784 + 10, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(20 + 10, 400)
+        self.fc21 = nn.Linear(400, self.latent_dim)
+        self.fc22 = nn.Linear(400, self.latent_dim)
+        self.fc3 = nn.Linear(self.latent_dim + 10, 400)
         self.fc4 = nn.Linear(400, 784)
 
-    def encode(self, x):
-        h1 = F.relu(self.fc1(x))
+    def encode(self, x, labels):
+        h1 = F.relu(self.fc1(torch.cat((x.view(-1, 784),labels.float().view(-1,10)),dim=-1)))
         return self.fc21(h1), self.fc22(h1)
 
     def reparameterize(self, mu, logvar):
@@ -62,7 +65,7 @@ class VAE(nn.Module):
         return torch.sigmoid(self.fc4(h3))
 
     def forward(self, x, labels):
-        mu, logvar = self.encode(torch.cat((x.view(-1, 784),labels.float().view(-1,10)),dim=-1))
+        mu, logvar = self.encode(x, labels)
         z = self.reparameterize(mu, logvar)
         return self.decode(z, labels), mu, logvar
 
@@ -112,11 +115,18 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
+    label_flag = False
     with torch.no_grad():
         for i, (data, labels) in enumerate(test_loader):
-            labels = torch.eye(10)[labels]
             data = data.to(device)
-            labels = labels.to(device)
+            if label_flag :
+                labels = torch.eye(10)[labels]
+                labels = labels.to(device)
+            else:
+                labels = np.zeros((labels.size()[0], 10))
+                labels = torch.from_numpy(labels).clone()
+                labels = labels.to(device)
+            #print(labels.size())
             recon_batch, mu, logvar = model(data,labels)
             test_loss += loss_function(recon_batch, data, mu, logvar).item()
             if i == 0:
@@ -134,7 +144,7 @@ if __name__ == "__main__":
         train(epoch)
         test(epoch)
         with torch.no_grad():
-            sample = torch.randn(64, 20).to(device)
+            sample = torch.randn(64, model.latent_dim).to(device)
             #sample_label = torch.eye(10)[torch.tensor([rand.randint(0, 9)])]
             sample_label = np.zeros((64, 10))
             """
@@ -147,3 +157,20 @@ if __name__ == "__main__":
             sample = model.decode(sample, sample_label).cpu()
             save_image(sample.view(64, 1, 28, 28),
                        'cvae/results/sample_' + str(epoch) + '.png')
+
+    sample_num = 2
+    cmap = plt.get_cmap("tab10")
+    for i, (data, labels) in enumerate(test_loader):
+        one_hot_labels = torch.eye(10)[labels]
+        data = data.to(device)
+        one_hot_labels = one_hot_labels.to(device)
+        recon_batch, mu, logvar = model(data, one_hot_labels)
+        z = model.reparameterize(mu, logvar)
+        z = z.to('cpu').detach().numpy().copy()
+        labels = labels.to('cpu').detach().numpy().copy()
+        for points,label in zip(z,labels):
+            #print(points, label)
+            plt.scatter(points[0],points[1],color=cmap(label))
+        if sample_num == i: break
+    plt.show()
+        
