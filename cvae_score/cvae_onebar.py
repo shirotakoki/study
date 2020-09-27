@@ -6,6 +6,7 @@ import random as rand
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
@@ -43,7 +44,7 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
 
         self.latent_dim = 10
-        self.input_dim = 16*(12 + 1)
+        self.input_dim = 16*((12 + 1)*2)
         self.fc1 = nn.Linear(self.input_dim + 1, 400)
         self.fc21 = nn.Linear(400, self.latent_dim)
         self.fc22 = nn.Linear(400, self.latent_dim)
@@ -75,7 +76,7 @@ class VAE(nn.Module):
 
     def calc_chord(self, x, labels):
         cd = chord()
-        return cd.test_calc(x, labels)
+        return cd.test_calc(x[0], labels)
 
 
 model = VAE().to(device)
@@ -86,18 +87,18 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 def loss_function(recon_x, x, mu, logvar, labels):
     cd = chord()
     BCE = F.binary_cross_entropy(
-        recon_x, x.float().view(-1, 16*(12 + 1)), reduction='sum')
+        recon_x, x.float().view(-1, 16*((12 + 1)*2)), reduction='sum')
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
     # https://arxiv.org/abs/1312.6114
     # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    #print(torch.t(recon_x).reshape(-1, 13))
+    recon_x = torch.t(recon_x).reshape(-1, (12+1)*2)
     #print(torch.t(x).reshape(-1, 13))
 
-    ChordLinear = (cd.test_calc_loss(x[0], labels) -
-                   cd.test_calc_loss(recon_x, labels))**2
+    ChordLinear = (cd.test_calc(x[0], labels) -
+                   cd.test_calc(recon_x, labels))**2
     print(ChordLinear)
 
     return BCE + KLD + ChordLinear
