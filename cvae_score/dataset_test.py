@@ -9,7 +9,7 @@ class Dataset_generator:
         self.quantize_val = 16
         self.bar_val = 1
         self.scale_val = 12
-        self.data_val = 1
+        self.data_val = 100
         self.score_data = pd.DataFrame(
             np.zeros((self.quantize_val*self.bar_val *
                       self.data_val, (self.scale_val+1)*2), dtype='int'),
@@ -38,7 +38,8 @@ class Dataset_generator:
 
     def gen_examdata(self):
         c_major = ['c', 'e', 'g']
-        c_scale = ['c', 'd', 'e', 'f', 'g', 'a', 'b']
+        c_scale = ['c', 'd', 'e', 'f', 'g', 'a', 'b', 'rest']
+        np.random.seed(0)
 
         """
 
@@ -54,11 +55,67 @@ class Dataset_generator:
             self.put_note(c_scale[np.random.randint(7)], i, 1, 2)
             self.put_chord('c', 'maj', 2)
         """
-
+        """
         for i in range(4):
             self.put_note(c_major[0], i*4, 4, 0)
         self.put_labels('c', 'maj', 0, 16)
-
+        """
+        """
+        self.put_note(c_major[0], 0, 16, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(8):
+            self.put_note(c_major[0], i * 2, 1, 0)
+            self.put_note(c_scale[7], i*2-1, 1, 0)
+        self.put_labels('c', 'maj', 0, 8)
+        """
+        """
+        for i in range(8):
+            self.put_note(c_major[0], i * 2, 1, 0)
+            self.put_note(c_scale[2], i*2-1, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(16):
+            self.put_note(c_scale[i % 3], i, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(16):
+            self.put_note(c_scale[0], i, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(16):
+            self.put_note(c_scale[i % 7], i, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(4):
+            self.put_note(c_scale[i], i*4, 4, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(4):
+            self.put_note(c_scale[0], i * 4, 1, 0)
+            self.put_note(c_scale[1], i * 4 + 1, 1, 0)
+            self.put_note(c_scale[2], i * 4 + 2, 1, 0)
+            self.put_note(c_scale[1], i*4+3, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        """
+        for i in range(4):
+            self.put_note(c_scale[0], i * 4, 1, 0)
+            self.put_note(c_scale[1], i * 4 + 1, 1, 0)
+            self.put_note(c_scale[2], i * 4 + 2, 1, 0)
+            self.put_note(c_scale[3], i*4+3, 1, 0)
+        self.put_labels('c', 'maj', 0, 16)
+        """
+        for i in range(self.data_val):
+            for j in range(16):
+                self.put_note(c_scale[np.random.randint(7)], j, 1, i)
+                self.put_labels('c', 'maj', i, 16)
         # print(self.score_data)
         # print(self.label_data)
 
@@ -90,12 +147,10 @@ class Test_dataset(torch.utils.data.Dataset):
 if __name__ == "__main__":
     td = Test_dataset()
     trainloader = torch.utils.data.DataLoader(
-        td, shuffle=True)
-    print(td.data)
-    print(td.label)
-    """
+        td, batch_size=10, shuffle=True)
+    # print(td.data)
+    # print(td.label)
     for data, label in trainloader:
+        print(data.size(), " : ", label.size())
         print(data)
         print(label)
-        break
-    """
